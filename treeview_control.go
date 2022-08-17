@@ -21,11 +21,9 @@ var (
 
 func getPixbuf(path string) *gdk.Pixbuf {
 	img, err := gtk.ImageNewFromFile(path)
-
 	if err != nil {
 		log.Fatal("Unable to load pixbuf:", err)
 	}
-
 	return img.GetPixbuf()
 }
 
@@ -34,12 +32,10 @@ func createImageColumn(title string, id int) *gtk.TreeViewColumn {
 	if err != nil {
 		log.Fatal("Unable to create pixbuf cell renderer:", err)
 	}
-
 	column, err := gtk.TreeViewColumnNewWithAttribute(title, cellRenderer, "pixbuf", id)
 	if err != nil {
 		log.Fatal("Unable to create cell column:", err)
 	}
-
 	return column
 }
 
@@ -48,26 +44,21 @@ func createTextColumn(title string, id int) *gtk.TreeViewColumn {
 	if err != nil {
 		log.Fatal("Unable to create text cell renderer:", err)
 	}
-
 	column, err := gtk.TreeViewColumnNewWithAttribute(title, cellRenderer, "text", id)
 	if err != nil {
 		log.Fatal("Unable to create cell column:", err)
 	}
-
 	return column
 }
 
 func setupTreeView(treeView *gtk.TreeView) *gtk.TreeStore {
 	treeView.AppendColumn(createImageColumn("Status", COLUMN_IMG))
 	treeView.AppendColumn(createTextColumn("Url", COLUMN_TEXT))
-
 	treeStore, err := gtk.TreeStoreNew(gdk.PixbufGetType(), glib.TYPE_STRING)
 	if err != nil {
 		log.Fatal("Unable to create list store:", err)
 	}
-
 	treeView.SetModel(treeStore)
-
 	return treeStore
 }
 
@@ -78,18 +69,30 @@ func applyTree(store *gtk.TreeStore, root *UrlTreeStruct) {
 
 func applyTreeBranch(store *gtk.TreeStore, parentIter *gtk.TreeIter, child *UrlTreeStruct) {
 
+	var err error
 	iter := store.Append(parentIter)
 
-	err := treeStore.SetValue(iter, COLUMN_IMG, question_pixbuf)
-	if err != nil {
-		log.Fatal("Unable config row:", err)
+	var selected_pixbuf *gdk.Pixbuf
+
+	switch child.Status {
+	case STATUS_NO_INFO:
+		selected_pixbuf = question_pixbuf
+	case STATUS_SUCCESS:
+		selected_pixbuf = check_pixbuf
+	case STATUS_FAILURE:
+		selected_pixbuf = remove_pixbuf
 	}
 
+	if selected_pixbuf != nil {
+		err = treeStore.SetValue(iter, COLUMN_IMG, selected_pixbuf)
+		if err != nil {
+			log.Fatal("Unable config row:", err)
+		}
+	}
 	err = treeStore.SetValue(iter, COLUMN_TEXT, child.GetUrlAccordingParent())
 	if err != nil {
 		log.Fatal("Unable config row:", err)
 	}
-
 	for _, chld := range child.Childs {
 		applyTreeBranch(store, iter, chld)
 	}

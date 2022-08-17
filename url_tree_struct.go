@@ -5,15 +5,22 @@ import (
 	"sync"
 )
 
+const (
+	STATUS_NO_INFO = iota
+	STATUS_SUCCESS
+	STATUS_FAILURE
+)
+
 type UrlTreeStruct struct {
 	Url        string
+	Status     int
 	Parent     *UrlTreeStruct
 	Childs     []*UrlTreeStruct
 	childMutex sync.Mutex
 }
 
 func NewUrlTreeStruct(url string) *UrlTreeStruct {
-	return &UrlTreeStruct{Url: url, Childs: make([]*UrlTreeStruct, 0)}
+	return &UrlTreeStruct{Url: url, Status: STATUS_NO_INFO, Childs: make([]*UrlTreeStruct, 0)}
 }
 
 func (p *UrlTreeStruct) AppendChild(newChild *UrlTreeStruct) bool {
