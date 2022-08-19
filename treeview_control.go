@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"sync"
 
 	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/glib"
@@ -11,15 +12,26 @@ import (
 const (
 	COLUMN_IMG = iota
 	COLUMN_TEXT
+	COLUMN_SIZE
 )
 
 var (
-	question_pixbuf *gdk.Pixbuf
-	check_pixbuf    *gdk.Pixbuf
-	remove_pixbuf   *gdk.Pixbuf
+	clear_pixbuf       *gdk.Pixbuf
+	question_pixbuf    *gdk.Pixbuf
+	check_pixbuf       *gdk.Pixbuf
+	remove_pixbuf      *gdk.Pixbuf
+	wait_pixbuf        *gdk.Pixbuf
+	teapot_pixbuf      *gdk.Pixbuf
+	not_found_pixbuf   *gdk.Pixbuf
+	robot_pixbuf       *gdk.Pixbuf
+	not_allowed_pixbuf *gdk.Pixbuf
 )
 
+var pixbufMtx sync.Mutex
+
 func getPixbuf(path string) *gdk.Pixbuf {
+	pixbufMtx.Lock()
+	defer pixbufMtx.Unlock()
 	img, err := gtk.ImageNewFromFile(path)
 	if err != nil {
 		log.Fatal("Unable to load pixbuf:", err)
@@ -51,7 +63,7 @@ func createTextColumn(title string, id int) *gtk.TreeViewColumn {
 	return column
 }
 
-func setupTreeView(treeView *gtk.TreeView) *gtk.TreeStore {
+func setupTreeViewLikeTree(treeView *gtk.TreeView) *gtk.TreeStore {
 	treeView.AppendColumn(createImageColumn("Status", COLUMN_IMG))
 	treeView.AppendColumn(createTextColumn("Url", COLUMN_TEXT))
 	treeStore, err := gtk.TreeStoreNew(gdk.PixbufGetType(), glib.TYPE_STRING)
@@ -60,6 +72,43 @@ func setupTreeView(treeView *gtk.TreeView) *gtk.TreeStore {
 	}
 	treeView.SetModel(treeStore)
 	return treeStore
+}
+
+func setupTreeViewLikeList(treeView *gtk.TreeView) *gtk.ListStore {
+	treeView.AppendColumn(createImageColumn("Status", COLUMN_IMG))
+	treeView.AppendColumn(createTextColumn("Size", COLUMN_SIZE))
+	treeView.AppendColumn(createTextColumn("Url", COLUMN_TEXT))
+	treeStore, err := gtk.ListStoreNew(gdk.PixbufGetType(), glib.TYPE_STRING, glib.TYPE_STRING)
+	if err != nil {
+		log.Fatal("Unable to create list store:", err)
+	}
+	treeView.SetModel(treeStore)
+	return treeStore
+}
+
+func getPixbufByStatus(status int) *gdk.Pixbuf {
+	switch status {
+	case STATUS_NO_INFO:
+		return clear_pixbuf
+	case STATUS_PROBLEM:
+		return question_pixbuf
+	case STATUS_SUCCESS:
+		return check_pixbuf
+	case STATUS_FAILURE:
+		return remove_pixbuf
+	case STATUS_LONGWAIT:
+		return wait_pixbuf
+	case STATUS_TEAPOT:
+		return teapot_pixbuf
+	case STATUS_NOTFOUND:
+		return not_found_pixbuf
+	case STATUS_ROBOT:
+		return robot_pixbuf
+	case STATUS_NOTALLOWED:
+		return not_allowed_pixbuf
+	default:
+		return clear_pixbuf
+	}
 }
 
 func applyTree(store *gtk.TreeStore, root *UrlTreeStruct) {
@@ -71,17 +120,9 @@ func applyTreeBranch(store *gtk.TreeStore, parentIter *gtk.TreeIter, child *UrlT
 
 	var err error
 	iter := store.Append(parentIter)
+	child.TreeIter = iter
 
-	var selected_pixbuf *gdk.Pixbuf
-
-	switch child.Status {
-	case STATUS_NO_INFO:
-		selected_pixbuf = question_pixbuf
-	case STATUS_SUCCESS:
-		selected_pixbuf = check_pixbuf
-	case STATUS_FAILURE:
-		selected_pixbuf = remove_pixbuf
-	}
+	selected_pixbuf := getPixbufByStatus(child.Status)
 
 	if selected_pixbuf != nil {
 		err = treeStore.SetValue(iter, COLUMN_IMG, selected_pixbuf)
@@ -95,5 +136,15 @@ func applyTreeBranch(store *gtk.TreeStore, parentIter *gtk.TreeIter, child *UrlT
 	}
 	for _, chld := range child.Childs {
 		applyTreeBranch(store, iter, chld)
+	}
+}
+
+func applyList(store *gtk.ListStore, list *[]*UrlStruct) {
+	store.Clear()
+	for _, us := range *list {
+		selected_pixbuf := getPixbufByStatus(us.Status)
+
+		store.Set(store.Append(), []int{COLUMN_IMG, COLUMN_SIZE, COLUMN_TEXT},
+			[]interface{}{selected_pixbuf, us.GetShortSizeFormat(), us.Url})
 	}
 }
