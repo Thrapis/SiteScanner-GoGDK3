@@ -16,11 +16,21 @@ const (
 	LINK_TYPE_CALLTO
 )
 
+const (
+	INTENT_HREF = iota
+	INTENT_SRC
+)
+
 type UrlStruct struct {
-	Url        string
-	Status     int
-	LinkType   int
-	SourceSize int64
+	Url        string `json:"url"`
+	Status     int    `json:"status"`
+	LinkType   int    `json:"link_type"`
+	Intent     int    `json:"intent"`
+	SourceSize int64  `json:"source_size"`
+}
+
+func (us UrlStruct) String() string {
+	return fmt.Sprintf("%s-%d-%d-%d-%s", us.Url, us.Status, us.LinkType, us.Intent, us.GetShortSizeFormat())
 }
 
 func NewUrlStruct(url string) *UrlStruct {
@@ -56,14 +66,14 @@ func (us UrlStruct) GetShortSizeFormat() string {
 }
 
 type UrlTreeStruct struct {
-	Url        string
-	Status     int
-	Parent     *UrlTreeStruct
-	Childs     []*UrlTreeStruct
-	childMutex sync.Mutex
-	InnerUrls  []*UrlStruct
-	innerMutex sync.Mutex
-	TreeIter   *gtk.TreeIter
+	Url        string           `json:"url"`
+	Status     int              `json:"status"`
+	Parent     *UrlTreeStruct   `json:"-"`
+	Childs     []*UrlTreeStruct `json:"-"`
+	childMutex sync.Mutex       `json:"-"`
+	InnerUrls  []UrlStruct      `json:"inner_urls"`
+	innerMutex sync.Mutex       `json:"-"`
+	TreeIter   *gtk.TreeIter    `json:"-"`
 }
 
 func NewUrlTreeStruct(url string) *UrlTreeStruct {
@@ -72,7 +82,7 @@ func NewUrlTreeStruct(url string) *UrlTreeStruct {
 
 func (uts *UrlTreeStruct) AppendInnerUrl(newInnerUrl *UrlStruct) {
 	uts.innerMutex.Lock()
-	uts.InnerUrls = append(uts.InnerUrls, newInnerUrl)
+	uts.InnerUrls = append(uts.InnerUrls, *newInnerUrl)
 	uts.innerMutex.Unlock()
 }
 
@@ -145,4 +155,18 @@ func (r *UrlTreeStruct) AppendAccordingUrl(newChild *UrlTreeStruct) bool {
 			}
 		}
 	}
+}
+
+func (uts *UrlTreeStruct) Deep() int {
+	if len(uts.Childs) == 0 {
+		return 1
+	}
+	maxDeep := 1
+	for _, v := range uts.Childs {
+		dp := v.Deep()
+		if dp > maxDeep {
+			maxDeep = dp
+		}
+	}
+	return maxDeep + 1
 }

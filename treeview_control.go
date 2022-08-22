@@ -10,9 +10,15 @@ import (
 )
 
 const (
-	COLUMN_IMG = iota
-	COLUMN_TEXT
-	COLUMN_SIZE
+	ONE_COLUMN_IMG = iota
+	ONE_COLUMN_TEXT
+)
+
+const (
+	TWO_COLUMN_IMG = iota
+	TWO_COLUMN_IMG_2
+	TWO_COLUMN_SIZE
+	TWO_COLUMN_TEXT
 )
 
 var (
@@ -25,6 +31,10 @@ var (
 	not_found_pixbuf   *gdk.Pixbuf
 	robot_pixbuf       *gdk.Pixbuf
 	not_allowed_pixbuf *gdk.Pixbuf
+	tmr_pixbuf         *gdk.Pixbuf
+	ise_pixbuf         *gdk.Pixbuf
+	href_pixbuf        *gdk.Pixbuf
+	src_pixbuf         *gdk.Pixbuf
 )
 
 var pixbufMtx sync.Mutex
@@ -64,8 +74,8 @@ func createTextColumn(title string, id int) *gtk.TreeViewColumn {
 }
 
 func setupTreeViewLikeTree(treeView *gtk.TreeView) *gtk.TreeStore {
-	treeView.AppendColumn(createImageColumn("Status", COLUMN_IMG))
-	treeView.AppendColumn(createTextColumn("Url", COLUMN_TEXT))
+	treeView.AppendColumn(createImageColumn("Status", ONE_COLUMN_IMG))
+	treeView.AppendColumn(createTextColumn("Url", ONE_COLUMN_TEXT))
 	treeStore, err := gtk.TreeStoreNew(gdk.PixbufGetType(), glib.TYPE_STRING)
 	if err != nil {
 		log.Fatal("Unable to create list store:", err)
@@ -75,10 +85,11 @@ func setupTreeViewLikeTree(treeView *gtk.TreeView) *gtk.TreeStore {
 }
 
 func setupTreeViewLikeList(treeView *gtk.TreeView) *gtk.ListStore {
-	treeView.AppendColumn(createImageColumn("Status", COLUMN_IMG))
-	treeView.AppendColumn(createTextColumn("Size", COLUMN_SIZE))
-	treeView.AppendColumn(createTextColumn("Url", COLUMN_TEXT))
-	treeStore, err := gtk.ListStoreNew(gdk.PixbufGetType(), glib.TYPE_STRING, glib.TYPE_STRING)
+	treeView.AppendColumn(createImageColumn("Intent", TWO_COLUMN_IMG))
+	treeView.AppendColumn(createImageColumn("Status", TWO_COLUMN_IMG_2))
+	treeView.AppendColumn(createTextColumn("Size", TWO_COLUMN_SIZE))
+	treeView.AppendColumn(createTextColumn("Url", TWO_COLUMN_TEXT))
+	treeStore, err := gtk.ListStoreNew(gdk.PixbufGetType(), gdk.PixbufGetType(), glib.TYPE_STRING, glib.TYPE_STRING)
 	if err != nil {
 		log.Fatal("Unable to create list store:", err)
 	}
@@ -104,8 +115,23 @@ func getPixbufByStatus(status int) *gdk.Pixbuf {
 		return not_found_pixbuf
 	case STATUS_ROBOT:
 		return robot_pixbuf
+	case STATUS_TMR:
+		return tmr_pixbuf
 	case STATUS_NOTALLOWED:
 		return not_allowed_pixbuf
+	case STATUS_ISE:
+		return ise_pixbuf
+	default:
+		return remove_pixbuf
+	}
+}
+
+func getPixbufByIntent(intent int) *gdk.Pixbuf {
+	switch intent {
+	case INTENT_HREF:
+		return href_pixbuf
+	case INTENT_SRC:
+		return src_pixbuf
 	default:
 		return clear_pixbuf
 	}
@@ -117,20 +143,16 @@ func applyTree(store *gtk.TreeStore, root *UrlTreeStruct) {
 }
 
 func applyTreeBranch(store *gtk.TreeStore, parentIter *gtk.TreeIter, child *UrlTreeStruct) {
-
-	var err error
 	iter := store.Append(parentIter)
 	child.TreeIter = iter
-
 	selected_pixbuf := getPixbufByStatus(child.Status)
-
 	if selected_pixbuf != nil {
-		err = treeStore.SetValue(iter, COLUMN_IMG, selected_pixbuf)
+		err := treeStore.SetValue(iter, ONE_COLUMN_IMG, selected_pixbuf)
 		if err != nil {
 			log.Fatal("Unable config row:", err)
 		}
 	}
-	err = treeStore.SetValue(iter, COLUMN_TEXT, child.GetUrlAccordingParent())
+	err := treeStore.SetValue(iter, ONE_COLUMN_TEXT, child.GetUrlAccordingParent())
 	if err != nil {
 		log.Fatal("Unable config row:", err)
 	}
@@ -139,12 +161,21 @@ func applyTreeBranch(store *gtk.TreeStore, parentIter *gtk.TreeIter, child *UrlT
 	}
 }
 
-func applyList(store *gtk.ListStore, list *[]*UrlStruct) {
+func applyList(store *gtk.ListStore, list *[]UrlStruct) {
 	store.Clear()
 	for _, us := range *list {
-		selected_pixbuf := getPixbufByStatus(us.Status)
-
-		store.Set(store.Append(), []int{COLUMN_IMG, COLUMN_SIZE, COLUMN_TEXT},
-			[]interface{}{selected_pixbuf, us.GetShortSizeFormat(), us.Url})
+		//fmt.Println(us)
+		intent_pixbuf := getPixbufByIntent(us.Intent)
+		status_pixbuf := getPixbufByStatus(us.Status)
+		store.Set(store.Append(), []int{TWO_COLUMN_IMG, TWO_COLUMN_IMG_2, TWO_COLUMN_SIZE, TWO_COLUMN_TEXT},
+			[]interface{}{intent_pixbuf, status_pixbuf, us.GetShortSizeFormat(), us.Url})
 	}
+}
+
+func expandToItem(treeView *gtk.TreeView, store *gtk.TreeStore, node *UrlTreeStruct) {
+	//fmt.Println("SELECT", node)
+	path, _ := store.GetPath(node.TreeIter)
+	treeView.ExpandRow(path, false)
+	selection, _ := treeView.GetSelection()
+	selection.SelectIter(node.TreeIter)
 }
