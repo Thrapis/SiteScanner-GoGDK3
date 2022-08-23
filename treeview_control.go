@@ -164,7 +164,6 @@ func applyTreeBranch(store *gtk.TreeStore, parentIter *gtk.TreeIter, child *UrlT
 func applyList(store *gtk.ListStore, list *[]UrlStruct) {
 	store.Clear()
 	for _, us := range *list {
-		//fmt.Println(us)
 		intent_pixbuf := getPixbufByIntent(us.Intent)
 		status_pixbuf := getPixbufByStatus(us.Status)
 		store.Set(store.Append(), []int{TWO_COLUMN_IMG, TWO_COLUMN_IMG_2, TWO_COLUMN_SIZE, TWO_COLUMN_TEXT},
@@ -173,9 +172,10 @@ func applyList(store *gtk.ListStore, list *[]UrlStruct) {
 }
 
 func expandToItem(treeView *gtk.TreeView, store *gtk.TreeStore, node *UrlTreeStruct) {
-	//fmt.Println("SELECT", node)
 	path, _ := store.GetPath(node.TreeIter)
-	treeView.ExpandRow(path, false)
+	treeView.ExpandToPath(path)
 	selection, _ := treeView.GetSelection()
 	selection.SelectIter(node.TreeIter)
+	col := treeView.GetColumn(ONE_COLUMN_IMG)
+	treeView.ScrollToCell(path, col, true, 0, 0)
 }

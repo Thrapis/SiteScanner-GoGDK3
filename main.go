@@ -23,14 +23,16 @@ var (
 	checkSingleDeepButton *gtk.Button
 	saveButton            *gtk.Button
 	loadButton            *gtk.Button
+	backButton            *gtk.Button
 	selectedUrlLink       *gtk.LinkButton
 	innerUrlTreeView      *gtk.TreeView
 	listStore             *gtk.ListStore
 
-	searchedUrl string
-	listOfUrls  *[]string
-	urlTree     *UrlTreeStruct
-	selectedUrl *UrlTreeStruct
+	searchedUrl     string
+	listOfUrls      *[]string
+	urlTree         *UrlTreeStruct
+	selectedUrl     *UrlTreeStruct
+	backSelectedUrl *UrlTreeStruct
 )
 
 const (
@@ -138,6 +140,7 @@ func lockUI() {
 		checkSingleDeepButton.SetSensitive(false)
 		saveButton.SetSensitive(false)
 		loadButton.SetSensitive(false)
+		backButton.SetSensitive(false)
 	})
 }
 
@@ -151,7 +154,18 @@ func unlockUI() {
 		checkSingleDeepButton.SetSensitive(true)
 		saveButton.SetSensitive(true)
 		loadButton.SetSensitive(true)
+		backButton.SetSensitive(true)
 	})
+}
+
+func chargeBackButton(uts *UrlTreeStruct) {
+	backSelectedUrl = uts
+}
+
+func releaseBackButton() {
+	if backSelectedUrl != nil {
+		expandToItem(urlTreeView, treeStore, backSelectedUrl)
+	}
 }
 
 func clearSelection() {
@@ -163,17 +177,14 @@ func clearSelection() {
 }
 
 func urlTreeSelectionChanged(s *gtk.TreeSelection) {
-	//fmt.Println("Selection!")
 	rows := s.GetSelectedRows(treeStore)
 	item := rows.First()
-
 	if item != nil {
 		path := item.Data().(*gtk.TreePath)
 		iter, _ := treeStore.GetIter(path)
 
 		uts := urlTree.FindByTreeIter(iter)
 		if uts != nil {
-			fmt.Println("Selectiong", uts.Url)
 			selectedUrl = uts
 			selectedUrlLink.SetUri(uts.Url)
 			if len(uts.Url) > 48 {
@@ -227,7 +238,7 @@ func startScanningProcess() {
 func startCheckPages() {
 	go func() {
 		lockUI()
-		currentSelection := selectedUrl
+		chargeBackButton(selectedUrl)
 		message := "Process"
 		progressChangeWithToolTip(message, 0)
 		time1 := time.Now()
@@ -237,10 +248,6 @@ func startCheckPages() {
 		progressChangeWithToolTip(message, 1)
 		glib.IdleAdd(func() {
 			applyTree(treeStore, urlTree)
-			fmt.Println(urlTree.FindByUrl(selectedUrl.Url))
-			if currentSelection != nil {
-				expandToItem(urlTreeView, treeStore, currentSelection)
-			}
 		})
 		unlockUI()
 	}()
@@ -252,19 +259,16 @@ func startCheckSelectedPage() {
 	}
 	go func() {
 		lockUI()
-		currentSelection := selectedUrl
+		chargeBackButton(selectedUrl)
 		message := "Process"
 		progressChangeWithToolTip(message, 0)
 		time1 := time.Now()
-		InitCheckUrl(searchedUrl, currentSelection, progressChange)
+		InitCheckUrl(searchedUrl, selectedUrl, progressChange)
 		time2 := time.Now()
 		message = fmt.Sprintf("Process done at %s [%s]", time.Now().Format("15:04:05"), (time2.Sub(time1)))
 		progressChangeWithToolTip(message, 1)
 		glib.IdleAdd(func() {
 			applyTree(treeStore, urlTree)
-			if currentSelection != nil {
-				expandToItem(urlTreeView, treeStore, currentSelection)
-			}
 		})
 		unlockUI()
 	}()
@@ -274,11 +278,11 @@ func startCheckPagesFromSelected() {
 
 	go func() {
 		lockUI()
-		currentSelection := selectedUrl
+		chargeBackButton(selectedUrl)
 		message := "Process"
 		progressChangeWithToolTip(message, 0)
 		time1 := time.Now()
-		InitCheckUrlDeep(searchedUrl, currentSelection, progressChange)
+		InitCheckUrlDeep(searchedUrl, selectedUrl, progressChange)
 		time2 := time.Now()
 		message = fmt.Sprintf("Process done at %s [%s]", time.Now().Format("15:04:05"), (time2.Sub(time1)))
 		progressChangeWithToolTip(message, 1)
@@ -286,9 +290,6 @@ func startCheckPagesFromSelected() {
 			applyTree(treeStore, urlTree)
 		})
 		unlockUI()
-		if currentSelection != nil {
-			expandToItem(urlTreeView, treeStore, currentSelection)
-		}
 	}()
 }
 
@@ -425,6 +426,16 @@ func main() {
 	loadButton.Connect("clicked", func() {
 		load()
 	})
+
+	obj, err = b.GetObject("BackButton")
+	standartErrorHandle(err)
+	backButton = obj.(*gtk.Button)
+	backButton.Connect("clicked", func() {
+		releaseBackButton()
+	})
+	img, _ = gtk.ImageNewFromFile("images/last.png")
+	img.Show()
+	backButton.SetImage(img)
 
 	obj, err = b.GetObject("InnerUrlTreeView")
 	standartErrorHandle(err)

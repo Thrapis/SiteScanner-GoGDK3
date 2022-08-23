@@ -144,6 +144,20 @@
                     <property name="position">3</property>
                   </packing>
                 </child>
+                <child>
+                  <object class="GtkButton" id="BackButton">
+                    <property name="visible">True</property>
+                    <property name="can-focus">True</property>
+                    <property name="receives-default">True</property>
+                    <property name="margin-start">5</property>
+                    <property name="margin-end">4</property>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">True</property>
+                    <property name="position">4</property>
+                  </packing>
+                </child>
               </object>
               <packing>
                 <property name="expand">False</property>
@@ -200,7 +214,7 @@
                   </packing>
                 </child>
                 <child>
-                  <object class="GtkButton" id="LoadButtton">
+                  <object class="GtkButton" id="LoadButton">
                     <property name="label" translatable="yes">Load</property>
                     <property name="visible">True</property>
                     <property name="can-focus">True</property>
