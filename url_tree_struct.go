@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 
@@ -22,11 +23,11 @@ const (
 )
 
 type UrlStruct struct {
-	Url        string `json:"url"`
-	Status     int    `json:"status"`
-	LinkType   int    `json:"link_type"`
-	Intent     int    `json:"intent"`
-	SourceSize int64  `json:"source_size"`
+	Url        string
+	Status     int
+	LinkType   int
+	Intent     int
+	SourceSize int64
 }
 
 func (us UrlStruct) String() string {
@@ -66,14 +67,14 @@ func (us UrlStruct) GetShortSizeFormat() string {
 }
 
 type UrlTreeStruct struct {
-	Url        string           `json:"url"`
-	Status     int              `json:"status"`
-	Parent     *UrlTreeStruct   `json:"-"`
-	Childs     []*UrlTreeStruct `json:"-"`
-	childMutex sync.Mutex       `json:"-"`
-	InnerUrls  []UrlStruct      `json:"inner_urls"`
-	innerMutex sync.Mutex       `json:"-"`
-	TreeIter   *gtk.TreeIter    `json:"-"`
+	Url        string
+	Status     int
+	Parent     *UrlTreeStruct
+	Childs     []*UrlTreeStruct
+	childMutex sync.Mutex
+	InnerUrls  []UrlStruct
+	innerMutex sync.Mutex
+	TreeIter   *gtk.TreeIter
 }
 
 func NewUrlTreeStruct(url string) *UrlTreeStruct {
@@ -169,4 +170,39 @@ func (uts *UrlTreeStruct) Deep() int {
 		}
 	}
 	return maxDeep + 1
+}
+
+type UrlTreeStructCard struct {
+	Url       string
+	Status    int
+	InnerUrls []UrlStruct
+}
+
+func (uts *UrlTreeStruct) CopyAsList(card *[]UrlTreeStructCard) {
+	*card = append(*card, UrlTreeStructCard{uts.Url, uts.Status, uts.InnerUrls})
+	if len(uts.Childs) == 0 {
+		return
+	}
+	for _, v := range uts.Childs {
+		v.CopyAsList(card)
+	}
+}
+
+func RestoreFromList(card *[]UrlTreeStructCard) *UrlTreeStruct {
+	sort.Slice(*card, func(i, j int) bool {
+		l1, l2 := len((*card)[i].Url), len((*card)[j].Url)
+		if l1 != l2 {
+			return l1 < l2
+		}
+		return (*card)[i].Url < (*card)[j].Url
+	})
+
+	root_utsc := (*card)[0]
+	urlTree := &UrlTreeStruct{Url: root_utsc.Url, Status: root_utsc.Status, InnerUrls: root_utsc.InnerUrls}
+	for i := 1; i < len(*card); i++ {
+		utsc := (*card)[i]
+		nts := &UrlTreeStruct{Url: utsc.Url, Status: utsc.Status, InnerUrls: utsc.InnerUrls}
+		urlTree.AppendAccordingUrl(nts)
+	}
+	return urlTree
 }

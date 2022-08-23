@@ -1,10 +1,8 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
-	"os"
 	"sync"
 	"time"
 
@@ -29,11 +27,10 @@ var (
 	innerUrlTreeView      *gtk.TreeView
 	listStore             *gtk.ListStore
 
-	searchedUrl   string
-	listOfUrls    *[]string
-	listOfUrlTree []UrlTreeStruct
-	urlTree       *UrlTreeStruct
-	selectedUrl   *UrlTreeStruct
+	searchedUrl string
+	listOfUrls  *[]string
+	urlTree     *UrlTreeStruct
+	selectedUrl *UrlTreeStruct
 )
 
 const (
@@ -60,6 +57,43 @@ func standartErrorHandle(err error) {
 	if err != nil {
 		log.Fatal("Ошибка:", err)
 	}
+}
+
+func save() {
+	lockUI()
+	dlg, _ := gtk.FileChooserNativeDialogNew("Choose save file", win,
+		gtk.FILE_CHOOSER_ACTION_SAVE, "Save", "Cancel")
+	response := dlg.Run()
+	if response == int(gtk.RESPONSE_ACCEPT) {
+		fn := dlg.GetFilename()
+		log.Printf("File: %s", fn)
+		var arr []UrlTreeStructCard
+		urlTree.CopyAsList(&arr)
+		writeGob(fn, arr)
+	}
+	dlg.Destroy()
+	unlockUI()
+}
+
+func load() {
+	lockUI()
+	dlg, _ := gtk.FileChooserNativeDialogNew("Choose load file", win,
+		gtk.FILE_CHOOSER_ACTION_OPEN, "Load", "Cancel")
+	response := dlg.Run()
+	if response == int(gtk.RESPONSE_ACCEPT) {
+		fn := dlg.GetFilename()
+		log.Printf("File: %s", fn)
+		var arr = new([]UrlTreeStructCard)
+		readGob(fn, arr)
+		urlTree = RestoreFromList(arr)
+		searchedUrl = urlTree.Url
+		entry.DeleteText(0, int(entry.GetTextLength()))
+		entry.InsertText(urlTree.Url, 0)
+		applyTree(treeStore, urlTree)
+		clearSelection()
+	}
+	dlg.Destroy()
+	unlockUI()
 }
 
 var progressMtx sync.Mutex
@@ -120,20 +154,6 @@ func unlockUI() {
 	})
 }
 
-func saveTo(path string) {
-	bts, _ := json.Marshal(listOfUrlTree)
-	file, _ := os.OpenFile(path, os.O_CREATE|os.O_TRUNC, 0777)
-	file.Write(bts)
-	file.Close()
-}
-
-func loadFrom(path string) {
-	bts, _ := os.ReadFile(path)
-	listOfUrlTree := make([]UrlTreeStruct, 0)
-	err := json.Unmarshal(bts, listOfUrlTree)
-	standartErrorHandle(err)
-}
-
 func clearSelection() {
 	selectedUrlLink.SetUri("")
 	selectedUrlLink.SetLabel("")
@@ -188,11 +208,9 @@ func startScanningProcess() {
 			progressChangeWithToolTip(message, 0)
 			listOfUrls = StartScan(norm_url, progressChange)
 			urlTree = NewUrlTreeStruct(norm_url)
-			listOfUrlTree = append(listOfUrlTree, *urlTree)
 			for _, page := range *listOfUrls {
 				fmt.Printf("Href: %s\n", page)
 				nts := NewUrlTreeStruct(page)
-				listOfUrlTree = append(listOfUrlTree, *nts)
 				urlTree.AppendAccordingUrl(nts)
 			}
 			time2 := time.Now()
@@ -201,7 +219,6 @@ func startScanningProcess() {
 			glib.IdleAdd(func() {
 				applyTree(treeStore, urlTree)
 			})
-			saveTo("card.json")
 			unlockUI()
 		}(searchedUrl)
 	}
@@ -399,14 +416,14 @@ func main() {
 	standartErrorHandle(err)
 	saveButton = obj.(*gtk.Button)
 	saveButton.Connect("clicked", func() {
-		saveTo("card.json")
+		save()
 	})
 
 	obj, err = b.GetObject("LoadButton")
 	standartErrorHandle(err)
 	loadButton = obj.(*gtk.Button)
 	loadButton.Connect("clicked", func() {
-		loadFrom("card.json")
+		load()
 	})
 
 	obj, err = b.GetObject("InnerUrlTreeView")
